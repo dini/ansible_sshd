@@ -1,4 +1,6 @@
 ---
+language: python
+dist: bionic
 python:
   - "2.7"
   - "3.6"
@@ -8,7 +10,7 @@ services:
 before_install:
   - sudo apt-get -qq update
 install:
-  - pip install --user molecule docker
+  - pip install molecule docker
 script:
   - molecule --version
   - ansible --version
