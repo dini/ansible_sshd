@@ -4,6 +4,9 @@ python:
   - "3.6"
 services:
   - docker
+sudo: required
+before_install:
+  - sudo apt-get -qq update
 install:
   - pip install molecule docker
 script:
