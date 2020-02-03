@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+{{ ansible_log }} {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0664 root root
+}

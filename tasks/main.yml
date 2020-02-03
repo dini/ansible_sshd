@@ -1,2 +1,173 @@
 ---
-# tasks file for ansible_sshd
+- name: Get OpenSSH version
+  shell: ssh -V 2>&1 | sed -r 's/.*_([0-9]*\.[0-9]).*/\1/g'
+  args:
+    executable: /bin/sh
+  changed_when: false
+  register: sshd_version
+  check_mode: no
+
+- name: Include crypto
+  include_tasks: crypto.yml
+
+- name: Create directory
+  file:
+    dest: "/etc/ssh_ansible"
+    state: directory
+
+- name: Create daemon symlink
+  file:
+    src: "{{ item }}/sshd"
+    dest: "{{ item }}/sshd_ansible"
+    state: link
+    force: yes
+  with_items:
+    - /usr/sbin
+    - /etc/pam.d
+
+- name: Create ansible user
+  user:
+    name: "{{ ansible_sshd_user }}"
+    group: "{{ ansible_sshd_group }}"
+    append: yes
+    comment: "{{ ansible_sshd_comment }}"
+    home: "{{ ansible_sshd_home }}"
+    createhome: yes
+    state: present
+    password: '!!'
+
+- name: Change owner of homedir admin users
+  file:
+    path: "{{ ansible_sshd_home }}"
+    state: directory
+    recurse: yes
+    owner: "{{ ansible_sshd_user }}"
+    group: "{{ ansible_sshd_group }}"
+
+- name: Standard SSH keys dir is absent
+  file:
+    path: "{{ ansible_sshd_home }}/.ssh"
+    state: absent
+
+- name: Ansible non-standard SSH keys dir
+  file:
+    path: "{{ ansible_sshd_home }}/{{ ansible_key_dir }}"
+    state: directory
+    owner: "{{ ansible_sshd_user }}"
+    group: "{{ ansible_sshd_group }}"
+    mode: "0700"
+
+- name: Ansible authorized_key
+  authorized_key:
+    user: "{{ ansible_sshd_user }}"
+    path: "{{ ansible_sshd_home }}/{{ ansible_key_dir }}/{{ ansible_key_file }}"
+    key: |
+      {{ ansible_key_data }}
+      {{ ansible_extra_key_data }}
+    manage_dir: no
+    exclusive: yes
+
+- name: Template sudoers
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "/{{ item.file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    validate: 'visudo -cf %s'
+  with_items:
+    - { file: 'etc/sudoers.d/ansible_sshd' }
+
+- name: Template sshd_config
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "/{{ item.file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    validate: '/usr/sbin/sshd -t -f %s'
+  with_items:
+    - { file: 'etc/ssh_ansible/sshd_config' }
+  notify:
+    - reload daemons
+    - restart ansible
+
+- name: Copy ansible_sshd config
+  template:
+    src: "etc/config/sshd_ansible"
+    dest: "/etc/{{ 'sysconfig' if ansible_os_family == 'RedHat' else 'default' }}/sshd_ansible"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify:
+    - reload daemons
+    - restart ansible
+
+- name: Template sshd_ansible rsyslog config
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "/{{ item.file }}"
+    owner: "root"
+    group: "root"
+    mode: 0644
+  notify:
+    - restart rsyslog
+  with_items:
+    - { file: 'etc/rsyslog.d/sshd_ansible.conf' }
+
+- name: Template ansible-sshd logrotate config
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "/{{ item.file }}"
+    owner: "root"
+    group: "root"
+    mode: 0644
+  with_items:
+    - { file: 'etc/logrotate.d/sshd_ansible' }
+
+- name: Copy new sshd_ansible systemd unit
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "/{{ item.file }}"
+    owner: "root"
+    group: "root"
+    mode: 0644
+  with_items:
+    - { file: 'etc/systemd/system/sshd_ansible.service' }
+  when: ansible_service_mgr == 'systemd'
+  notify:
+    - reload daemons
+    - restart ansible
+
+- name: Copy sshd_ansible sysVinit service
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "/{{ item.file }}"
+    owner: "root"
+    group: "root"
+    mode: 0755
+  with_items:
+    - { file: 'etc/init.d/sshd_ansible' }
+  when: ansible_service_mgr != 'systemd'
+  notify:
+    - restart ansible
+
+- name: Check if moduli contains weak DH parameters
+  shell: awk '$5 < {{ ansible_sshd_moduli_minimum }}' /etc/ssh/moduli
+  register: sshd_register_moduli
+  changed_when: false
+  check_mode: no
+
+- name: Remove all small primes
+  shell: awk '$5 >= {{ ansible_sshd_moduli_minimum }}' /etc/ssh/moduli > /tmp/moduli.new ;
+         [ -r /tmp/moduli.new -a -s /tmp/moduli.new ] && mv /tmp/moduli.new /etc/ssh/moduli || true
+  when: sshd_register_moduli.stdout
+  notify:
+    - restart ansible
+
+- name: start ansible_sshd service
+  service:
+    name: sshd_ansible
+    state: started
+    enabled: yes
+...

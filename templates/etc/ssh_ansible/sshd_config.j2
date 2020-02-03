@@ -1,0 +1,45 @@
+# {{ ansible_managed }}
+
+AddressFamily inet
+Protocol 2
+UseDNS no
+Port 48022
+
+PidFile /var/run/sshd_ansible.pid
+
+PermitRootLogin no
+
+{% for key in ansible_sshd_host_key_files -%}
+HostKey {{key}}
+{% endfor %}
+
+{{ "Ciphers "+ansible_sshd_ciphers| join(',') if ansible_sshd_ciphers else "Ciphers"|comment }}
+
+{{ "MACs "+ansible_sshd_macs| join(',') if ansible_sshd_macs else "MACs"|comment }}
+
+{{ "KexAlgorithms "+ansible_sshd_kex| join(',') if ansible_sshd_kex else "KexAlgorithms"|comment }}
+
+SyslogFacility AUTHPRIV
+
+AuthorizedKeysFile {{ ansible_key_dir }}/{{ ansible_key_file }}
+
+PubkeyAuthentication yes
+PasswordAuthentication no
+KerberosAuthentication no
+ChallengeResponseAuthentication no
+
+GSSAPIAuthentication no
+GSSAPICleanupCredentials no
+
+UsePAM yes
+
+X11Forwarding no
+UsePrivilegeSeparation {{ 'sandbox' if sshd_version.stdout is version('5.9', '>=') else 'yes' }}
+
+{% for item in ansible_sshd_permit_env -%}
+AcceptEnv {{ item }}
+{% endfor %}
+
+Subsystem       sftp    /usr/libexec/openssh/sftp-server
+
+AllowUsers {{ ansible_sshd_user }}

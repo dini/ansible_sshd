@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+AUTOCREATE_SERVER_KEYS=YES
+SSH_USE_STRONG_RNG=0
+OPTIONS="-f /etc/ssh_ansible/sshd_config"

@@ -1,0 +1,5 @@
+if $programname == 'sshd_ansible' or $programname startswith 'ansible' then {{ ansible_log }}
+{{ rsyslog_stop_log|default('& ~')}}
+
+:msg, regex, "^ *ansible" {{ ansible_log }}
+{{ rsyslog_stop_log|default('& ~')}}

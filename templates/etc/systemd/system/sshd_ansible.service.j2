@@ -1,0 +1,18 @@
+[Unit]
+Description=OpenSSH server daemon for Ansible Robot
+Documentation=man:sshd(8) man:sshd_config(5)
+After=network.target sshd-keygen.service
+Wants=sshd-keygen.service
+
+[Service]
+Type=notify
+PIDFile=/var/run/sshd_ansible.pid
+EnvironmentFile=/etc/{{ 'sysconfig' if ansible_os_family == 'RedHat' else 'default' }}/sshd_ansible
+ExecStart=/usr/sbin/sshd_ansible -D $OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=42s
+
+[Install]
+WantedBy=multi-user.target
