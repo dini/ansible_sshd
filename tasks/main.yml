@@ -1,8 +1,8 @@
 ---
 - name: Get OpenSSH version
-  shell: ssh -V 2>&1 | sed -r 's/.*_([0-9]*\.[0-9]).*/\1/g'
+  shell: set -o pipefail && ssh -V 2>&1 | sed -r 's/.*_([0-9]*\.[0-9]).*/\1/g'
   args:
-    executable: /bin/sh
+    executable: /bin/bash
   changed_when: false
   register: sshd_version
   check_mode: no
