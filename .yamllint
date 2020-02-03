@@ -12,6 +12,6 @@ rules:
     level: warning
   truthy:
     allowed-values:
-      - yes
-      - no
+      - "yes"
+      - "no"
 ...
